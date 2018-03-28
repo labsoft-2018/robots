@@ -1,29 +1,36 @@
 import * as io from 'socket.io-client';
 import * as R from 'ramda'
-
-const HEARTBEAT_INTERVAL = 2500
-const HOST = 'http://localhost:3000'
-const CARRIER_1_TOKEN = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiMSIsInNjb3BlcyI6WyJjYXJyaWVyIl0sImlhdCI6MTUyMjIwMTk4MCwiZXhwIjoxNTI0NzkzOTgwLCJhdWQiOiJ1c2VyIiwiaXNzIjoicXVhY2stcGFjayJ9.OtZlh8x_6lRqJ_O6DI1bKdRK5W3Viulb4bRtDFwwDcq-jjgNMzTGDPbmWd3wuyGaauftJFQ1jc_8_ovwJuSQgJ1H96C9qGWlB-EZWPE70JApvthbZ-u5rYZrxE3ElbOQRjdpKBod7THedTxjal5665DWhnQsJKr4F2Qw6WQGiUG_TBAi5J5ETXRegaVcmYR9JX7lteOTmkCBIoSCafB4HwHa0Qhrp2V_fGj8aoNK9E0b0euHqkkHHA6PvXRDH8jgaohWaJQXF17PpsYeD-cWzuiAPlmFWSPDnIzMaD6Wv9dXa5CWu73DBC9omkPLudbumwvrfyQJhJBPDQJU51yPwg'
+import { IComponents } from './system';
+import * as ora from 'ora'
+import chalk from 'chalk'
 
 const stopSendingPosition = (intervalId) => {
   if (intervalId) {
     clearInterval(intervalId)
   }
 }
-const startSendingPosition = (socket) => {
+const log = R.curry((color, name, message) => {
+  console.log(`${chalk.grey('carrier-')}${chalk.magentaBright(name)}: ${chalk[color](message)}`)
+})
+
+const logSuccess = log('green')
+const logWarning = log('yellow')
+const logDanger = log('red')
+
+const startSendingPosition = (socket, interval) => {
   return setInterval(() => {
     socket.emit('pos', {
       lat: -34.397 + (Math.random() - 0.5) * 0.1,
       lng: 150.644 + (Math.random() - 0.5) * 0.1,
     })
-  }, HEARTBEAT_INTERVAL)
+  }, interval)
 }
 
-const connectUser = (name, token) => {
+const connectCarrier = (token: string, name: string | number, host: string, interval: number) => {
   let intervalId
   
-  console.log(`connecting user ${name}...`)
-  const socket = io(HOST, {
+  logWarning(name, 'connecting...')
+  const socket = io(host, {
     transports: ['websocket'],
     query: {
       token
@@ -34,26 +41,58 @@ const connectUser = (name, token) => {
   socket.connect()
 
   socket.on('connect', () => {
-    console.log(`connected ${name}`)
-    intervalId = startSendingPosition(socket)
+    logSuccess(name, 'connected')
+    logSuccess(name, 'sending position...')
+    intervalId = startSendingPosition(socket, interval)
   })
 
   socket.on('error', (err) => {
-    console.log(`error ${name} - ${err}`)
+    logDanger(name, `error - ${err}`)
     stopSendingPosition(intervalId)
   })
 
   socket.on('disconnect', () => {
-    console.log('disconnected')
+    logDanger(name, `disconnected`)
     stopSendingPosition(intervalId)
   })
+
+  return socket
 }
 
-const main = () => {
-  connectUser('with-auth', CARRIER_1_TOKEN)
-  connectUser('no-auth', '')
+export interface IStartCarrierOptions {
+  host: string,
+  quantity: number,
+  startIdRange: number,
+  interval: number,
 }
 
-main()
+const idToCarrier = id => ({
+  user: id,
+  scopes: ['carrier']
+})
 
+export const startCarriers = async ({
+  host,
+  quantity,
+  startIdRange,
+  interval,
+}: IStartCarrierOptions, components: IComponents) => {
+  const spinner = ora()
+  
+  console.log(`${chalk.gray('Quantity')}: ${chalk.green(quantity.toString())}`)
+  console.log(`${chalk.gray('Start range ID')}: ${chalk.green(startIdRange.toString())}`)
+  console.log(`${chalk.gray('Interval')}: ${chalk.green(interval.toString())}`)
+  
+  spinner.start(`Obtaining tokens from ${startIdRange} to ${startIdRange + quantity - 1}`)
+  const tokens = await R.pipe(
+    R.map(idToCarrier),
+    R.map(components.token.encode),
+    (tokenPromises) => Promise.all(tokenPromises),
+  )(R.range(startIdRange, startIdRange + quantity))
 
+  spinner.succeed()
+  
+  R.pipe(
+    R.addIndex(R.map)((token, i) => connectCarrier(token, i + startIdRange, host, interval))
+  )(tokens) 
+}
