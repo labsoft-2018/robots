@@ -14,6 +14,7 @@
   "dependencies": {
     "@labsoft/common-js": "^1.0.0",
     "chalk": "^2.3.2",
+    "moment": "^2.21.0",
     "ora": "^2.0.0",
     "ramda": "^0.25.0",
     "socket.io-client": "^2.0.4",

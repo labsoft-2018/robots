@@ -3,9 +3,10 @@ import * as R from 'ramda'
 import * as ora from 'ora'
 import chalk from 'chalk'
 import { IComponents } from './system';
+import * as moment from 'moment'
 
 const log = R.curry((color, name, message) => {
-  console.log(`${chalk.gray('customer-')}${chalk.blueBright(name)}: ${chalk[color](message)}`)
+  console.log(`[${chalk.grey(moment().format('HH:mm:SS'))}] ${chalk.blueBright(`customer-${name}`)}: ${chalk[color](message)}`)
 })
 
 const logSuccess = log('green')

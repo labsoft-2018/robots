@@ -3,6 +3,7 @@ import * as R from 'ramda'
 import { IComponents } from './system';
 import * as ora from 'ora'
 import chalk from 'chalk'
+import * as moment from 'moment'
 
 const stopSendingPosition = (intervalId) => {
   if (intervalId) {
@@ -10,18 +11,20 @@ const stopSendingPosition = (intervalId) => {
   }
 }
 const log = R.curry((color, name, message) => {
-  console.log(`${chalk.grey('carrier-')}${chalk.magentaBright(name)}: ${chalk[color](message)}`)
+  console.log(`[${chalk.grey(moment().format('HH:mm:SS'))}] ${chalk.magentaBright(`carrier-${name}`)}: ${chalk[color](message)}`)
 })
 
 const logSuccess = log('green')
 const logWarning = log('yellow')
 const logDanger = log('red')
 
-const startSendingPosition = (socket, interval) => {
+const startSendingPosition = (socket, interval, name) => {
   return setInterval(() => {
     socket.emit('pos', {
-      lat: -34.397 + (Math.random() - 0.5) * 0.1,
-      lng: 150.644 + (Math.random() - 0.5) * 0.1,
+      // lat: -34.397 + (Math.random() - 0.5) * 0.1,
+      // lng: 150.644 + (Math.random() - 0.5) * 0.1,
+      lat: Number(name) + Math.random(),
+      lng: Number(name) + Math.random(),
     })
   }, interval)
 }
@@ -43,7 +46,7 @@ const connectCarrier = (token: string, name: string | number, host: string, inte
   socket.on('connect', () => {
     logSuccess(name, 'connected')
     logSuccess(name, 'sending position...')
-    intervalId = startSendingPosition(socket, interval)
+    intervalId = startSendingPosition(socket, interval, name)
   })
 
   socket.on('error', (err) => {
